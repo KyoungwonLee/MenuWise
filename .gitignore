@@ -1,9 +1,0 @@
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-venv/
-.env
-menu_wise.db
-.vscode/
-.idea/
