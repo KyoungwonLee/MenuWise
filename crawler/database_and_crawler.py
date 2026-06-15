@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -166,9 +167,40 @@ def _first_value(value):
 
 class MenuWiseDB:
     def __init__(self, db_path="menu_wise.db"):
-        """데이터베이스 초기화 및 테이블 생성을 위해 만든 생성자입니다."""
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        """데이터베이스 초기화 및 테이블 생성을 위해 만든 생성자입니다.
+
+        커넥션은 스레드별로 따로 둔다(아래 conn 프로퍼티). 비동기 서버가 요청을
+        여러 스레드로 처리할 때 각 스레드가 독립 커넥션을 사용하므로, WAL 모드와
+        함께 동시 읽기가 실제로 병렬 처리된다(공유 단일 커넥션 병목 제거).
+        """
+        self.db_path = db_path
+        self._local = threading.local()
         self.init_tables()
+
+    def _new_connection(self):
+        """스레드 1개가 사용할 SQLite 커넥션을 만들고 동시성 옵션(WAL 등)을 건다.
+
+        WAL: 읽기 여러 개 + 쓰기 1개 동시 처리.
+        busy_timeout: 락 충돌 시 즉시 에러 대신 일정 시간 대기·재시도.
+        """
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        return conn
+
+    @property
+    def conn(self):
+        """현재 스레드 전용 커넥션을 반환한다(없으면 생성).
+
+        기존 메서드들은 모두 self.conn을 그대로 사용하므로, 코드 수정 없이
+        '요청(스레드)별 커넥션'의 이점을 그대로 받는다.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = self._new_connection()
+            self._local.conn = conn
+        return conn
 
     def init_tables(self):
         """식당, 메뉴, 리뷰, 그리고 계층적 요약(CoreInfo) 테이블을 생성합니다."""
@@ -1097,7 +1129,10 @@ class MenuWiseDB:
         return r * c
 
     def close(self):
-        self.conn.close()
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._local.conn = None
 
 
 class ReviewCrawler:

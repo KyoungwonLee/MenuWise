@@ -315,7 +315,7 @@ async def api_health():
     summary="주변 메뉴 검색",
     description="위치, 반경, 검색어, 맛 키워드 기준으로 메뉴 검색 결과를 반환합니다.",
 )
-async def search_menus(
+def search_menus(
     lat: float,
     lng: float,
     radius: Optional[float] = Query(default=None),
@@ -352,7 +352,7 @@ async def search_menus(
     summary="메뉴 상세 조회",
     description="menu_id에 해당하는 코어 리뷰 목록을 반환합니다.",
 )
-async def get_details(menu_id: str):
+def get_details(menu_id: str):
     if USE_DUMMY:
         return {"details": DUMMY_DETAILS}
 
@@ -380,7 +380,7 @@ async def get_menu_summary(menu_id: str):
     database = _require_db()
 
     try:
-        menu_data = database.get_menu_details(menu_id)
+        menu_data = await run_in_threadpool(database.get_menu_details, menu_id)
         if not menu_data:
             raise HTTPException(status_code=404, detail=f"menu_id '{menu_id}'에 해당하는 메뉴가 없습니다.")
 
@@ -433,7 +433,7 @@ async def get_menu_summary(menu_id: str):
     summary="주변 식당 목록",
     description="메뉴가 있는 주변 식당 전체를 반환합니다(지도 핀용).",
 )
-async def get_restaurants(
+def get_restaurants(
     lat: Optional[float] = None,
     lng: Optional[float] = None,
     radius: Optional[float] = Query(default=None),
@@ -474,7 +474,7 @@ async def get_restaurants(
     summary="식당의 메뉴 목록",
     description="해당 식당의 모든 메뉴를 검색 결과와 동일한 형식으로 반환합니다.",
 )
-async def get_restaurant_menus(
+def get_restaurant_menus(
     res_id: str,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
@@ -499,7 +499,7 @@ async def get_restaurant_menus(
     summary="리뷰 추천/비추천(토글)",
     description="같은 버튼을 두 번 누르면 취소됩니다. previous/vote는 'up'|'down'|'none'.",
 )
-async def vote(request: VoteRequest):
+def vote(request: VoteRequest):
     valid = {"up", "down", "none"}
     vote_value = request.vote if request.vote in valid else "none"
     previous = request.previous if request.previous in valid else "none"
@@ -538,7 +538,7 @@ async def vote(request: VoteRequest):
     summary="장단점 댓글 조회",
     description="해당 핵심 정보(info_id)에 달린 댓글 목록을 반환합니다. author_token이 작성자와 일치하면 is_mine=True로 표시합니다.",
 )
-async def get_info_comments(info_id: int, author_token: Optional[str] = None):
+def get_info_comments(info_id: int, author_token: Optional[str] = None):
     if USE_DUMMY:
         return {"comments": []}
 
@@ -554,7 +554,7 @@ async def get_info_comments(info_id: int, author_token: Optional[str] = None):
     summary="장단점 댓글 작성",
     description="해당 핵심 정보(info_id)에 댓글을 추가합니다.",
 )
-async def add_info_comment(info_id: int, request: CommentRequest):
+def add_info_comment(info_id: int, request: CommentRequest):
     content = (request.content or "").strip()
     if not content:
         raise HTTPException(status_code=400, detail="댓글 내용이 비어 있습니다.")
@@ -579,7 +579,7 @@ async def add_info_comment(info_id: int, request: CommentRequest):
     summary="댓글 수정(작성자 본인)",
     description="author_token이 작성자와 일치할 때만 댓글 내용을 수정합니다.",
 )
-async def update_comment(comment_id: int, request: CommentUpdateRequest):
+def update_comment(comment_id: int, request: CommentUpdateRequest):
     content = (request.content or "").strip()
     if not content:
         raise HTTPException(status_code=400, detail="댓글 내용이 비어 있습니다.")
@@ -604,7 +604,7 @@ async def update_comment(comment_id: int, request: CommentUpdateRequest):
     summary="댓글 삭제(작성자 본인)",
     description="author_token이 작성자와 일치할 때만 댓글을 삭제합니다.",
 )
-async def delete_comment(comment_id: int, author_token: str = Query(...)):
+def delete_comment(comment_id: int, author_token: str = Query(...)):
     if USE_DUMMY:
         return {"ok": True}
 
