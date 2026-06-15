@@ -25,6 +25,10 @@ credentials.json
 *.sqlite
 *.sqlite3
 menu_wise.db
+# WAL 모드 부수 파일(머신 로컬, 커밋 금지)
+*.db-wal
+*.db-shm
+*.db-journal
 
 # ===== 크롤러 산출물(파이프라인 미사용 덤프 — 일부는 키 포함 가능) =====
 # 사진 URL 쿼리스트링에 실제 Google API 키가 섞일 수 있어 패턴으로 차단.
